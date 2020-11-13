@@ -28,8 +28,8 @@ spec:
     runPolicy: "Serial"
     source:
         git:
-            uri: "https://github.com/OPENAIRINTERFACE/openair-spgwu-tiny.git"
-            ref: "develop"
+            uri: "https://github.com/lionelgo/openair-spgwu-tiny.git"
+            ref: "magma-mme"
             httpProxy: http://proxy.eurecom.fr:8080
             httpsProxy: https://proxy.eurecom.fr:8080
         secrets:
@@ -45,8 +45,8 @@ spec:
             destinationDir: rhsm-ca
     strategy:
         dockerStrategy:
-            dockerfilePath: "docker/Dockerfile.rhel8-2.oc4-4"
+            dockerfilePath: "docker/Dockerfile.debug.centos8"
     output:
         to:
             kind: "ImageStreamTag"
-            name: "oai-spgwu-tiny:onap-0.1.0"
+            name: "oai-spgwu-tiny:magma-mme"
