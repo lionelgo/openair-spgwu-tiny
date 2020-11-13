@@ -30,7 +30,7 @@
 #---------------------------------------------------------------------
 FROM centos:8 as oai-spgwu-tiny-builder
 
-ARG EURECOM_PROXY
+ARG HTTP_PROXY
 ARG BUILD_FOR_CI
 ARG CI_SRC_BRANCH
 ARG CI_SRC_COMMIT
@@ -43,38 +43,6 @@ RUN yum update -y \
   && yum install -y \
     psmisc \
     git \
-  && yum clean all -y \
-  && rm -rf /var/cache/yum
-
-# Some GIT configuration command quite useful
-RUN /bin/bash -c "if [[ -v EURECOM_PROXY ]]; then git config --global http.proxy $EURECOM_PROXY; fi"
-RUN git config --global https.postBuffer 123289600
-RUN git config --global http.sslverify false
-# In normal case, we build out of the develop branch
-RUN /bin/bash -c "if [[ -v CI_SRC_BRANCH ]]; then git clone https://github.com/OPENAIRINTERFACE/openair-spgwu-tiny.git -b $CI_SRC_BRANCH /openair-spgwu-tiny; else git clone https://github.com/OPENAIRINTERFACE/openair-spgwu-tiny.git -b helm3.1-onap-sync-with-cn-split-repos /openair-spgwu-tiny; fi"
-# For CI, especially for Pull/Merge Requests, we build out of temp merge
-WORKDIR /openair-spgwu-tiny
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.name \"OAI CI\"; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.email ci@openairinterface.org; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git checkout -f $CI_SRC_COMMIT; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git merge --ff origin/$CI_DEST_BRANCH -m \"Temporary merge for CI\"; fi"
-
-# Installing and Building SPGW-C
-WORKDIR /openair-spgwu-tiny/build/scripts
-RUN ./build_spgwu --install-deps --force
-RUN ./build_spgwu --clean --build-type Debug --jobs --Verbose
-
-#---------------------------------------------------------------------
-# TARGET IMAGE
-#---------------------------------------------------------------------
-FROM centos:8 as oai-spgwu-tiny
-# We install some debug tools for the moment in addition of mandatory libraries
-RUN yum update -y  \
-  && yum install epel-release -y \
-  && yum install dnf-plugins-core -y \
-  && yum config-manager --set-enabled PowerTools \
-  && yum install -y \
-    psmisc \
     net-tools \
     tcpdump \
     iptables \
@@ -85,17 +53,37 @@ RUN yum update -y  \
     libevent \
     boost-system \
     gdb \
-    valgrind \
+    valgrind \    
   && yum clean all -y \
   && rm -rf /var/cache/yum
 
+# Some GIT configuration command quite useful
+RUN /bin/bash -c "if [[ -v HTTP_PROXY ]]; then git config --global http.proxy $HTTP_PROXY; fi"
+RUN git config --global https.postBuffer 123289600
+RUN git config --global http.sslverify false
+# In normal case, we build out of the develop branch
+RUN /bin/bash -c "if [[ -v CI_SRC_BRANCH ]]; then git clone https://github.com/lionelgo/openair-spgwu-tiny.git -b $CI_SRC_BRANCH /openair-spgwu-tiny; else git clone https://github.com/lionelgo/openair-spgwu-tiny.git -b magma-mme /openair-spgwu-tiny; fi"
+# For CI, especially for Pull/Merge Requests, we build out of temp merge
+WORKDIR /openair-spgwu-tiny
+RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.name \"OAI CI\"; fi"
+RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.email ci@openairinterface.org; fi"
+RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git checkout -f $CI_SRC_COMMIT; fi"
+RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git merge --ff origin/$CI_DEST_BRANCH -m \"Temporary merge for CI\"; fi"
+
+# Installing and Building SPGW-U
+WORKDIR /openair-spgwu-tiny/build/scripts
+RUN ./build_spgwu --install-deps --force
+RUN ./build_spgwu --clean --build-type Debug --jobs --Verbose
+
 # Copying executable and generated libraries
 WORKDIR /openair-spgwu-tiny/bin
-COPY --from=oai-spgwu-tiny-builder /openair-spgwu-tiny/build/spgw_u/build/spgwu oai_spgwu
-
-# Copying template configuration files
-# The configuration folder will be flat
-WORKDIR /openair-spgwu-tiny/etc
-COPY --from=oai-spgwu-tiny-builder /openair-spgwu-tiny/etc/spgw_u.conf .
+RUN cp /openair-spgwu-tiny/build/spgw_u/build/spgwu oai_spgwu \
+    && cp /openair-spgwu-tiny/scripts/entrypoint.sh .
 
 WORKDIR /openair-spgwu-tiny
+
+# expose ports
+EXPOSE 2152/udp 8805/udp
+
+CMD ["/openair-spgwu-tiny/bin/oai_spgwu", "-c", "/openair-spgwu-tiny/etc/spgw_u.conf", "-o"]
+ENTRYPOINT ["/openair-spgwu-tiny/bin/entrypoint.sh"]
