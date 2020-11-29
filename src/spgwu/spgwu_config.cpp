@@ -288,7 +288,7 @@ int spgwu_config::load(const string& config_file)
     load_interface(sgi_cfg, sgi);
 
     if ((boost::iequals(sgi.if_name, "none")) || (boost::iequals(sgi.if_name, "default_gateway")))  {
-      if (util::get_gateway_and_iface(gateway, sgi.if_name)) {
+      if (util::get_gateway_and_iface(gateway_ip, sgi.if_name)) {
         std::string copy = sgi.if_name;
         if (get_inet_addr_infos_from_iface(sgi.if_name, sgi.addr4, sgi.network4, sgi.mtu)) {
           Logger::spgwu_app().error("Could not read %s network interface configuration from system", sgi.if_name);
@@ -296,6 +296,19 @@ int spgwu_config::load(const string& config_file)
         }
       } else {
         Logger::spgwu_app().error("Could not find SGi interface and SGi gateway");
+        return RETURNerror;
+      }
+    } else {
+      try {
+        const Setting& gw_cfg = spgwu_cfg[SPGWU_CONFIG_STRING_GATEWAY];
+        if (gw_cfg.lookupValue(SPGWU_CONFIG_STRING_IP_ADDRESS, gateway_ip)) {
+             util::trim(gateway_ip);
+        }
+        if (gw_cfg.lookupValue(SPGWU_CONFIG_STRING_MAC_ADDRESS, gateway_mac)) {
+             util::trim(gateway_mac);
+        }
+      } catch(const SettingNotFoundException &nfex) {
+        Logger::spgwu_app().error("%s : %s", nfex.what(), nfex.getPath());
         return RETURNerror;
       }
     }
@@ -374,6 +387,7 @@ int spgwu_config::load(const string& config_file)
         throw ("Bad value in section %s : item no %d in config file %s", SPGWU_CONFIG_STRING_SPGWC_LIST, i, config_file.c_str());
       }
     }
+
   }
   catch(const SettingNotFoundException &nfex)
   {
@@ -436,7 +450,8 @@ void spgwu_config::display ()
   Logger::spgwu_app().info( "    ipv4.addr ........: %s", inet_ntoa (sgi.addr4));
   Logger::spgwu_app().info( "    ipv4.mask ........: %s", inet_ntoa (sgi.network4));
   Logger::spgwu_app().info( "    mtu ..............: %d", sgi.mtu);
-  Logger::spgwu_app().info( "    gateway ..........: %s", gateway.c_str());
+  Logger::spgwu_app().info( "    gateway L3 addr ..: %s", gateway_ip.c_str());
+  Logger::spgwu_app().info( "    gateway L2 addr ..: %s", gateway_mac.c_str());
   Logger::spgwu_app().info( "    Reader thread:");
   Logger::spgwu_app().info( "      CPU ID .........: %d", sgi.thread_rd_sched_params.cpu_id);
   Logger::spgwu_app().info( "      sched policy....: %d", sgi.thread_rd_sched_params.sched_policy);

@@ -71,6 +71,9 @@ namespace spgwu {
 #define SPGWU_CONFIG_STRING_SX_SCHED_PARAMS                       "SX_SCHED_PARAMS"
 #define SPGWU_CONFIG_STRING_SPGWU_APP_SCHED_PARAMS                "SPGWU_APP_SCHED_PARAMS"
 #define SPGWU_CONFIG_STRING_ASYNC_CMD_SCHED_PARAMS                "ASYNC_CMD_SCHED_PARAMS"
+#define SPGWU_CONFIG_STRING_GATEWAY                               "GATEWAY"
+#define SPGWU_CONFIG_STRING_IP_ADDRESS                            "IP"
+#define SPGWU_CONFIG_STRING_MAC_ADDRESS                           "MAC"
 
 #define SPGW_ABORT_ON_ERROR true
 #define SPGW_WARN_ON_ERROR false
@@ -120,7 +123,8 @@ public:
   interface_cfg_t sx;
   itti_cfg_t      itti;
 
-  std::string gateway;
+  std::string gateway_ip;
+  std::string gateway_mac;
 
   uint32_t        max_pfcp_sessions;
 
@@ -128,7 +132,7 @@ public:
   std::vector<pfcp::node_id_t> spgwcs;
 
 
-  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(), gateway(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100)
+  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(), gateway_ip(), gateway_mac(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100)
   {
     itti.itti_timer_sched_params.sched_priority = 85;
     itti.s1u_sched_params.sched_priority = 84;
