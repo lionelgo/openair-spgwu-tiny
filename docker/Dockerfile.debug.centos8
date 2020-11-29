@@ -84,7 +84,9 @@ RUN ./build_spgwu --install-deps --force
 
 ##### ODP
 WORKDIR /
-RUN git clone https://github.com/OpenDataPlane/odp.git && \
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local-lib.conf && \
+    echo "/usr/local/lib64" >> /etc/ld.so.conf.d/local-lib.conf && \
+    git clone https://github.com/OpenDataPlane/odp.git && \
     cd odp && \
     ./bootstrap && \
     ./configure && \
