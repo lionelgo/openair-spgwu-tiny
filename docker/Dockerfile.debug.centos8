@@ -43,17 +43,25 @@ RUN yum update -y \
   && yum install -y \
     psmisc \
     git \
-    net-tools \
-    tcpdump \
     iptables \
     ethtool \
     glog \
     double-conversion \
+    libatomic \
     libconfig \
     libevent \
     boost-system \
+    # debugging
     gdb \
-    valgrind \    
+    valgrind \
+    diffutils \
+    iputils \
+    tree \
+    tcpdump \
+    wireshark-cli \
+    net-tools \
+    openssh-server \
+    procps-ng \  
   && yum clean all -y \
   && rm -rf /var/cache/yum
 
@@ -73,6 +81,17 @@ RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git merge --ff origin/$CI_DEST_
 # Installing and Building SPGW-U
 WORKDIR /openair-spgwu-tiny/build/scripts
 RUN ./build_spgwu --install-deps --force
+
+##### ODP
+WORKDIR /
+RUN git clone https://github.com/OpenDataPlane/odp.git && \
+    cd odp && \
+    ./bootstrap && \
+    ./configure && \
+    make -j`nproc` && \
+    make install
+
+WORKDIR /openair-spgwu-tiny/build/scripts
 RUN ./build_spgwu --clean --build-type Debug --jobs --Verbose
 
 # Copying executable and generated libraries

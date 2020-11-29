@@ -27,16 +27,17 @@ include_directories(${SRC_TOP_DIR}/gtpv2c)
 include_directories(${SRC_TOP_DIR}/oai_spgwu)
 include_directories(${SRC_TOP_DIR}/pfcp)
 include_directories(${SRC_TOP_DIR}/spgwu)
-include_directories(${SRC_TOP_DIR}/spgwu/odpswitch)
 include_directories(${SRC_TOP_DIR}/udp)
 include_directories(${SRC_TOP_DIR}/../build/ext/spdlog/include)
 
 
-add_library (SPGWU STATIC
-  spgwu_pfcp_association.cpp
-  spgwu_app.cpp
-  spgwu_config.cpp
-  spgwu_sx.cpp
-  )
+#find_library(FOLLY folly)
 
+add_library (SPGW_SWITCH STATIC
+  pfcp_far.cpp
+  pfcp_pdr.cpp
+  pfcp_session.cpp
+  pfcp_switch.cpp
+  spgwu_s1u.cpp
+  )
   
