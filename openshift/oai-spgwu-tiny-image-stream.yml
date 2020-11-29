@@ -25,4 +25,4 @@ metadata:
     name: oai-spgwu-tiny
     namespace: oai-cn
 status:
-    tag: magma-mme
+    tag: odp
