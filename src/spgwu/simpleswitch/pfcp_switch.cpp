@@ -36,6 +36,7 @@
 #include "spgwu_s1u.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>      // std::ifstream
 #include <sched.h>
 #include <sys/ioctl.h>
@@ -134,7 +135,11 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
 
   while (1) {
     if ((bytes_received = recvmsg(sock_r, &msg, 0)) > 0) {
+      auto start = std::chrono::high_resolution_clock::now();
       pfcp_session_look_up_pack_in_core((const char*)msg_iov_.iov_base, bytes_received);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      cout << "DL took "  << duration.count() << std::endl;
     } else {
       Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s", bytes_received, strerror (errno));
     }
