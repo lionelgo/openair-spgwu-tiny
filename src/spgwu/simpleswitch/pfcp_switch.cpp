@@ -350,7 +350,7 @@ pfcp_switch::pfcp_switch() : seid_generator_(), teid_s1u_generator_(),
   sock_w = -1;
   pdn_if_index = -1;
   setup_pdn_interfaces();
-  thread_sock_ = thread(&pfcp_switch::pdn_read_loop,this, spgwu_cfg.itti.sx_sched_params);
+  thread_sock_ = thread(&pfcp_switch::pdn_read_loop,this, spgwu_cfg.sgi.thread_rd_sched_params);
   thread_sock_.detach();
 }
 //------------------------------------------------------------------------------
