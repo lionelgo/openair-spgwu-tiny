@@ -55,6 +55,7 @@ namespace spgwu {
 #define SPGWU_CONFIG_STRING_THREAD_RD_CPU_ID                      "CPU_ID"
 #define SPGWU_CONFIG_STRING_THREAD_RD_SCHED_POLICY                "SCHED_POLICY"
 #define SPGWU_CONFIG_STRING_THREAD_RD_SCHED_PRIORITY              "SCHED_PRIORITY"
+#define SPGWU_CONFIG_STRING_THREAD_POOL_SIZE                      "THREAD_POOL_SIZE"
 #define SPGWU_CONFIG_STRING_INTERFACE_SGI                         "SGI"
 #define SPGWU_CONFIG_STRING_INTERFACE_SX                          "SX"
 #define SPGWU_CONFIG_STRING_INTERFACE_S1U_S12_S4_UP               "S1U_S12_S4_UP"

@@ -136,6 +136,13 @@ int spgwu_config::load_thread_sched_params(const Setting& thread_sched_params_cf
     Logger::spgwu_app().info("%s : %s, using defaults", nfex.what(), nfex.getPath());
   }
 
+  try {
+    thread_sched_params_cfg.lookupValue(SPGWU_CONFIG_STRING_THREAD_POOL_SIZE, cfg.thread_pool_size);
+    Logger::spgwu_app().info("THREAD_POOL_SIZE : %d", cfg.thread_pool_size);
+  } catch(const SettingNotFoundException &nfex) {
+    Logger::spgwu_app().info("%s : %s, using defaults", nfex.what(), nfex.getPath());
+  }
+
   return RETURNok;
 }
 //------------------------------------------------------------------------------
@@ -421,6 +428,7 @@ void spgwu_config::display ()
   Logger::spgwu_app().info( "      CPU ID .........: %d", s1_up.thread_rd_sched_params.cpu_id);
   Logger::spgwu_app().info( "      sched policy....: %d", s1_up.thread_rd_sched_params.sched_policy);
   Logger::spgwu_app().info( "      sched priority..: %d", s1_up.thread_rd_sched_params.sched_priority);
+  Logger::spgwu_app().info( "      thread pool size: %d", s1_up.thread_rd_sched_params.thread_pool_size);
   Logger::spgwu_app().info( "- SXA-SXB:");
   Logger::spgwu_app().info( "    iface ............: %s", sx.if_name.c_str());
   Logger::spgwu_app().info( "    ipv4.addr ........: %s", inet_ntoa (sx.addr4));
@@ -431,6 +439,7 @@ void spgwu_config::display ()
   Logger::spgwu_app().info( "      CPU ID .........: %d (TODO)", sx.thread_rd_sched_params.cpu_id);
   Logger::spgwu_app().info( "      sched policy....: %d (TODO)", sx.thread_rd_sched_params.sched_policy);
   Logger::spgwu_app().info( "      sched priority..: %d (TODO)", sx.thread_rd_sched_params.sched_priority);
+  Logger::spgwu_app().info( "      thread pool size: %d (TODO)", sx.thread_rd_sched_params.thread_pool_size);
   Logger::spgwu_app().info( "- SGi:");
   Logger::spgwu_app().info( "    iface ............: %s", sgi.if_name.c_str());
   Logger::spgwu_app().info( "    ipv4.addr ........: %s", inet_ntoa (sgi.addr4));
@@ -441,6 +450,7 @@ void spgwu_config::display ()
   Logger::spgwu_app().info( "      CPU ID .........: %d", sgi.thread_rd_sched_params.cpu_id);
   Logger::spgwu_app().info( "      sched policy....: %d", sgi.thread_rd_sched_params.sched_policy);
   Logger::spgwu_app().info( "      sched priority..: %d", sgi.thread_rd_sched_params.sched_priority);
+  Logger::spgwu_app().info( "      thread pool size: %d", sgi.thread_rd_sched_params.thread_pool_size);
   Logger::spgwu_app().info( "- PDN networks:");
   int i = 1;
   for (auto it : pdns) {

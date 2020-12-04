@@ -33,6 +33,8 @@
 #include "itti.hpp"
 #include "thread_sched.hpp"
 
+#include <folly/MPMCQueue.h>
+
 #include <arpa/inet.h>
 #include <inttypes.h>
 #include <sys/socket.h>
@@ -47,9 +49,6 @@
 #include <utility>
 #include <vector>
 
-
-
-  
 class udp_application
 {
 public:
@@ -57,11 +56,26 @@ public:
   virtual void start_receive(udp_application * gtp_stack, const util::thread_sched_params& sched_params);
 };
 
+class udp_server;
+
+class udp_worker {
+public:
+  char                   *buffer;
+  endpoint                r_endpoint;
+  size_t                  size;
+  std::mutex              m;
+  std::condition_variable c;
+  std::thread             t;
+
+  udp_worker(udp_server *u, const int buffer_size, char* area, const util::thread_sched_params& sched_params);
+};
+
 class udp_server
 {
+#define UDP_RECV_BUFFER_SIZE 8192
 public:
   udp_server(const struct in_addr& address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num)
+    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
@@ -75,7 +89,7 @@ public:
   }
 
   udp_server(const struct in6_addr& address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num)
+    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
@@ -89,7 +103,7 @@ public:
   }
 
   udp_server(const char * address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num)
+    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
@@ -104,9 +118,14 @@ public:
   ~udp_server()
   {
     close(socket_);
+    // TODO delete/release elements in  the pool
+    delete buffer_pool_;
+    free(recv_buffer_);
   }
 
   void udp_read_loop(const util::thread_sched_params& thread_sched_params);
+  void udp_worker_loop(udp_worker* w, const util::thread_sched_params& sched_params);
+
 
   void async_send_to(const char* send_buffer, const ssize_t num_bytes, const endpoint& r_endpoint)
   {
@@ -135,6 +154,7 @@ public:
 
   void start_receive(udp_application * gtp_stack, const util::thread_sched_params& sched_params);
 
+
 protected:
   int create_socket (const struct in_addr& address, const uint16_t port);
   int create_socket (const struct in6_addr& address, const uint16_t port);
@@ -147,15 +167,14 @@ protected:
       std::size_t /*bytes_transferred*/)
   {
   }
-
-
+  // Should be in non swapable memory
+  folly::MPMCQueue<udp_worker*>  *buffer_pool_;
+  char             *recv_buffer_;
   udp_application*  app_;
   std::thread       thread_;
   int               socket_;
   uint16_t          port_;
   sa_family_t       sa_family;
-#define UDP_RECV_BUFFER_SIZE 8192
-  char              recv_buffer_[UDP_RECV_BUFFER_SIZE];
 };
 
 

@@ -30,6 +30,15 @@
 
 #include <cstdlib>
 
+
+//------------------------------------------------------------------------------
+udp_worker::udp_worker(udp_server *u, const int buffer_size, char* area, const util::thread_sched_params& sched_params)  :
+  m(), c(), buffer(area), r_endpoint(), size(buffer_size)
+{
+  t = std::thread(&udp_server::udp_worker_loop,u, this, sched_params);
+  t.detach();
+}
+
 //------------------------------------------------------------------------------
 void udp_application::handle_receive(char* recv_buffer, const std::size_t bytes_transferred, const endpoint& r_endpoint)
 {
@@ -59,20 +68,37 @@ static std::string string_to_hex(const std::string& input)
     return output;
 }
 //------------------------------------------------------------------------------
+void udp_server::udp_worker_loop(udp_worker* worker, const util::thread_sched_params& sched_params)
+{
+  sched_params.apply(TASK_NONE, Logger::udp());
+  while (1) {
+    std::unique_lock<std::mutex> lck {worker->m};
+    worker->c.wait(lck);
+    app_->handle_receive(worker->buffer, worker->size, worker->r_endpoint);
+    lck.unlock();
+    buffer_pool_->write(worker);
+  }
+}
+
+//------------------------------------------------------------------------------
 void udp_server::udp_read_loop(const util::thread_sched_params& sched_params)
 {
   endpoint                                r_endpoint = {};
   size_t                                  bytes_received = 0;
+  udp_worker*                             worker = nullptr;
 
   sched_params.apply(TASK_NONE, Logger::udp());
 
   while (1) {
-    r_endpoint.addr_storage_len = sizeof(struct sockaddr_storage);
-    if ((bytes_received = recvfrom (socket_, recv_buffer_, UDP_RECV_BUFFER_SIZE, 0, (struct sockaddr *)&r_endpoint.addr_storage, &r_endpoint.addr_storage_len)) > 0) {
-      app_->handle_receive(recv_buffer_, bytes_received, r_endpoint);
+    buffer_pool_->blockingRead(worker);
+    std::unique_lock<std::mutex> lck {worker->m};
+    worker->r_endpoint.addr_storage_len = sizeof(struct sockaddr_storage);
+    if ((worker->size = recvfrom (socket_, worker->buffer, UDP_RECV_BUFFER_SIZE, 0, (struct sockaddr *)&worker->r_endpoint.addr_storage, &worker->r_endpoint.addr_storage_len)) > 0) {
+      worker->c.notify_one();
     } else {
       Logger::udp().error( "Recvfrom failed %s\n", strerror (errno));
     }
+    worker = nullptr;
   }
 }
 //------------------------------------------------------------------------------
@@ -168,6 +194,15 @@ void udp_server::start_receive(udp_application * app, const util::thread_sched_p
 {
   app_ = app;
   Logger::udp().trace( "udp_server::start_receive");
+  buffer_pool_ = new folly::MPMCQueue<udp_worker*>(sched_params.thread_pool_size);
+  recv_buffer_ = (char*)calloc(sched_params.thread_pool_size, UDP_RECV_BUFFER_SIZE);
+  for (int i = 0; i < sched_params.thread_pool_size; i++) {
+    udp_worker *w = new udp_worker(this, UDP_RECV_BUFFER_SIZE,
+                                   &recv_buffer_[i*UDP_RECV_BUFFER_SIZE],
+                                   sched_params);
+    buffer_pool_->blockingWrite(w);
+  }
   thread_ = std::thread(&udp_server::udp_read_loop,this, sched_params);
   thread_.detach();
 }
+
