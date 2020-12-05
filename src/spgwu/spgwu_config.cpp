@@ -329,10 +329,16 @@ int spgwu_config::load(const string& config_file)
       string network_ipv4 = {};
       if (pdn_network_cfg.lookupValue(SPGWU_CONFIG_STRING_NETWORK_IPV4, network_ipv4)) {
         std::vector<std::string> ips = {};
-        boost::split(ips, network_ipv4, boost::is_any_of(SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER), boost::token_compress_on);
+        boost::split(ips, network_ipv4,
+            boost::is_any_of(SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER),
+            boost::token_compress_on);
         if (ips.size() != 2) {
-          Logger::spgwu_app().error("Bad value %s : %s in config file %s", SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER, network_ipv4.c_str(), config_file.c_str());
-          throw ("Bad value %s : %s in config file %s", SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER, network_ipv4.c_str(), config_file.c_str());
+          Logger::spgwu_app().error("Bad value %s : %s in config file %s",
+              SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER,
+              network_ipv4.c_str(), config_file.c_str());
+          throw ("Bad value %s : %s in config file %s",
+              SPGWU_CONFIG_STRING_ADDRESS_PREFIX_DELIMITER,
+              network_ipv4.c_str(), config_file.c_str());
         }
 
         if (inet_pton (AF_INET, util::trim(ips.at(0)).c_str(), buf_in_addr) == 1) {
@@ -342,6 +348,8 @@ int spgwu_config::load(const string& config_file)
           throw ("CONFIG: BAD NETWORK ADDRESS in " SPGWU_CONFIG_STRING_PDN_NETWORK_LIST);
         }
         pdn_cfg.prefix_ipv4 = std::stoul (ips.at(1),nullptr,0);
+        pdn_cfg.network_ipv4_be = be32toh(pdn_cfg.network_ipv4.s_addr);
+        pdn_cfg.network_mask_ipv4_be = be32toh(0xFFFFFFFF << (32 - pdn_cfg.prefix_ipv4));
       }
 
       string network_ipv6 = {};
