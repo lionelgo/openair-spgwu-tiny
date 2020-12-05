@@ -72,6 +72,7 @@ void udp_server::udp_worker_loop(const int id, const util::thread_sched_params& 
     // exit thread
     if (worker->buffer) {
       app_->handle_receive(worker->buffer, worker->size, worker->r_endpoint);
+      free_pool_->write(worker);
     } else {
       free(worker);
       std::cout << "exit w" << id << " " << count << std::endl;
