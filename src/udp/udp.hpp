@@ -58,54 +58,54 @@ public:
 
 class udp_server;
 
-class udp_worker {
-public:
+typedef struct udp_packet_q_item_s {
   char                   *buffer;
   endpoint                r_endpoint;
   size_t                  size;
-  std::mutex              m;
-  std::condition_variable c;
-  std::thread             t;
-  // for debug
-  uint32_t                id;
-  uint64_t                count;
-  udp_worker(udp_server *u, const int buffer_size, char* area, const util::thread_sched_params& sched_params);
-};
+}udp_packet_q_item_t;
+
 
 class udp_server
 {
 #define UDP_RECV_BUFFER_SIZE 8192
 public:
   udp_server(const struct in_addr& address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
+    : app_(nullptr), port_(port_num), num_threads_(1), free_pool_(nullptr),
+      work_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
-      Logger::udp().debug( "udp_server::udp_server(%s:%d)", conv::toString(address).c_str(), port_);
+      Logger::udp().debug( "udp_server::udp_server(%s:%d)",
+          conv::toString(address).c_str(), port_);
       sa_family = AF_INET;
     } else {
-      Logger::udp().error( "udp_server::udp_server(%s:%d)", conv::toString(address).c_str(), port_);
+      Logger::udp().error( "udp_server::udp_server(%s:%d)",
+          conv::toString(address).c_str(), port_);
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      throw std::system_error(socket_, std::generic_category(), "GTPV1-U socket creation failed!");
+      throw std::system_error(socket_, std::generic_category(),
+          "GTPV1-U socket creation failed!");
     }
   }
 
   udp_server(const struct in6_addr& address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
+    : app_(nullptr), port_(port_num), free_pool_(nullptr), work_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
-      Logger::udp().debug( "udp_server::udp_server(%s:%d)", conv::toString(address).c_str(), port_);
+      Logger::udp().debug( "udp_server::udp_server(%s:%d)",
+          conv::toString(address).c_str(), port_);
       sa_family = AF_INET6;
     } else {
-      Logger::udp().error( "udp_server::udp_server(%s:%d)", conv::toString(address).c_str(), port_);
+      Logger::udp().error( "udp_server::udp_server(%s:%d)",
+          conv::toString(address).c_str(), port_);
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      throw std::system_error(socket_, std::generic_category(), "GTPV1-U socket creation failed!");
+      throw std::system_error(socket_, std::generic_category(),
+          "GTPV1-U socket creation failed!");
     }
   }
 
   udp_server(const char * address, const uint16_t port_num)
-    : app_(nullptr), port_(port_num), buffer_pool_(nullptr)
+    : app_(nullptr), port_(port_num), free_pool_(nullptr), work_pool_(nullptr)
   {
     socket_ = create_socket (address, port_);
     if (socket_ > 0) {
@@ -113,7 +113,8 @@ public:
     } else {
       Logger::udp().error( "udp_server::udp_server(%s:%d)", address, port_);
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      throw std::system_error(socket_, std::generic_category(), "GTPV1-U socket creation failed!");
+      throw std::system_error(socket_, std::generic_category(),
+          "GTPV1-U socket creation failed!");
     }
   }
 
@@ -121,12 +122,14 @@ public:
   {
     close(socket_);
     // TODO delete/release elements in  the pool
-    delete buffer_pool_;
-    free(recv_buffer_);
+    delete free_pool_;
+    delete work_pool_;
+    free(recv_buffer_alloc_);
+    //free(udp_packet_q_item_alloc_);
   }
 
   void udp_read_loop(const util::thread_sched_params& thread_sched_params);
-  void udp_worker_loop(udp_worker* w, const util::thread_sched_params& sched_params);
+  void udp_worker_loop(const int id, const util::thread_sched_params& sched_params);
 
 
   void async_send_to(const char* send_buffer, const ssize_t num_bytes, const endpoint& r_endpoint)
@@ -155,6 +158,7 @@ public:
 
 
   void start_receive(udp_application * gtp_stack, const util::thread_sched_params& sched_params);
+  void stop(void);
 
 
 protected:
@@ -170,10 +174,13 @@ protected:
   {
   }
   // Should be in non swapable memory
-  folly::MPMCQueue<udp_worker*>  *buffer_pool_;
-  char             *recv_buffer_;
+  folly::MPMCQueue<udp_packet_q_item_t*>  *free_pool_;
+  folly::MPMCQueue<udp_packet_q_item_t*>  *work_pool_;
+  uint32_t          num_threads_;
+  char                *recv_buffer_alloc_;
+  //udp_packet_q_item_t *udp_packet_q_item_alloc_;
   udp_application*  app_;
-  std::thread       thread_;
+  std::vector<std::thread> threads_;
   int               socket_;
   uint16_t          port_;
   sa_family_t       sa_family;

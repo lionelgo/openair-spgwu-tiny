@@ -101,7 +101,7 @@ int main(int argc, char **argv)
   int nb_processes = my_check_redundant_process(argv[0]);
   if (nb_processes > 1) {
      std::cout << "An instance of " << argv[0] << "is maybe already called!" << std::endl;
-     return -1;
+     //return -1;
   }
 
   // Command line options

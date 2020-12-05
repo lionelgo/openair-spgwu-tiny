@@ -80,6 +80,7 @@ public:
 
   void send_response(const gtpv1u_echo_response& gtp_ies);
   void send_indication(const gtpv1u_error_indication& gtp_ies);
+  void stop() {udp_s.stop();};
 
 };
 } // namespace gtpv1u

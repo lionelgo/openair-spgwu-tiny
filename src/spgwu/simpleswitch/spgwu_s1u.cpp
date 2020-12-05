@@ -82,6 +82,7 @@ void spgwu_s1u_task (void *args_p)
     case TERMINATE:
       if (itti_msg_terminate *terminate = dynamic_cast<itti_msg_terminate*>(msg)) {
         Logger::spgwu_s1u().info( "Received terminate message");
+        spgwu_s1u_inst->stop();
         return;
       }
       break;
