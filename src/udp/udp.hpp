@@ -66,7 +66,9 @@ public:
   std::mutex              m;
   std::condition_variable c;
   std::thread             t;
-
+  // for debug
+  uint32_t                id;
+  uint64_t                count;
   udp_worker(udp_server *u, const int buffer_size, char* area, const util::thread_sched_params& sched_params);
 };
 

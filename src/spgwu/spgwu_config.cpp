@@ -307,6 +307,19 @@ int spgwu_config::load(const string& config_file)
       }
     }
 
+    try {
+      const Setting& nsf_cfg = spgwu_cfg[SPGWU_CONFIG_STRING_NON_STANDART_FEATURES];
+      nsf.bypass_ul_pfcp_rules = false;
+      std::string astring = {};
+      if (nsf_cfg.lookupValue(SPGWU_CONFIG_STRING_BYPASS_UL_PFCP_RULES, astring)) {
+        if (boost::iequals(astring, "yes")) {
+          nsf.bypass_ul_pfcp_rules = true;
+        }
+      }    } catch(const SettingNotFoundException &nfex) {
+      Logger::spgwu_app().info("%s : %s, using defaults", nfex.what(), nfex.getPath());
+    }
+
+
     const Setting& pdn_network_list_cfg = spgwu_cfg[SPGWU_CONFIG_STRING_PDN_NETWORK_LIST];
     int count = pdn_network_list_cfg.getLength();
     for (int i = 0; i < count; i++) {
@@ -463,5 +476,7 @@ void spgwu_config::display ()
     }
     i++;
   }
+  Logger::spgwu_app().info( "- NON_STANDART_FEATURES:");
+  Logger::spgwu_app().info( "    bypass_ul_pfcp_rules: %s", (nsf.bypass_ul_pfcp_rules) ? "yes":"no");
 }
 

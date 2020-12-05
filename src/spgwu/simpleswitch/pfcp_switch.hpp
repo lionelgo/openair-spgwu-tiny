@@ -113,6 +113,7 @@ private:
   int create_pdn_socket (const char * const ifname, const bool promisc, int& if_index);
   int create_pdn_socket (const char * const ifname);
   void setup_pdn_interfaces();
+  bool no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes);
 
   timer_id_t timer_max_commit_interval_id;
   timer_id_t timer_min_commit_interval_id;

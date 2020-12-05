@@ -33,7 +33,7 @@
 
 //------------------------------------------------------------------------------
 udp_worker::udp_worker(udp_server *u, const int buffer_size, char* area, const util::thread_sched_params& sched_params)  :
-  m(), c(), buffer(area), r_endpoint(), size(buffer_size)
+  m(), c(), buffer(area), r_endpoint(), size(buffer_size), id(0), count(0)
 {
   t = std::thread(&udp_server::udp_worker_loop,u, this, sched_params);
   t.detach();
@@ -74,6 +74,8 @@ void udp_server::udp_worker_loop(udp_worker* worker, const util::thread_sched_pa
   while (1) {
     std::unique_lock<std::mutex> lck {worker->m};
     worker->c.wait(lck);
+    ++worker->count;
+    std::cout << "w" << worker->id << " " << worker->count << std::endl;
     app_->handle_receive(worker->buffer, worker->size, worker->r_endpoint);
     lck.unlock();
     buffer_pool_->write(worker);
@@ -200,6 +202,7 @@ void udp_server::start_receive(udp_application * app, const util::thread_sched_p
     udp_worker *w = new udp_worker(this, UDP_RECV_BUFFER_SIZE,
                                    &recv_buffer_[i*UDP_RECV_BUFFER_SIZE],
                                    sched_params);
+    w->id = i;
     buffer_pool_->blockingWrite(w);
   }
   thread_ = std::thread(&udp_server::udp_read_loop,this, sched_params);

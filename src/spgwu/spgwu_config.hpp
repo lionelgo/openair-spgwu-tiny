@@ -72,6 +72,9 @@ namespace spgwu {
 #define SPGWU_CONFIG_STRING_SX_SCHED_PARAMS                       "SX_SCHED_PARAMS"
 #define SPGWU_CONFIG_STRING_SPGWU_APP_SCHED_PARAMS                "SPGWU_APP_SCHED_PARAMS"
 #define SPGWU_CONFIG_STRING_ASYNC_CMD_SCHED_PARAMS                "ASYNC_CMD_SCHED_PARAMS"
+#define SPGWU_CONFIG_STRING_NON_STANDART_FEATURES                 "NON_STANDART_FEATURES"
+#define SPGWU_CONFIG_STRING_BYPASS_UL_PFCP_RULES                  "BYPASS_UL_PFCP_RULES"
+
 
 #define SPGW_ABORT_ON_ERROR true
 #define SPGW_WARN_ON_ERROR false
@@ -102,6 +105,11 @@ typedef struct itti_cfg_s {
   util::thread_sched_params async_cmd_sched_params;
 } itti_cfg_t;
 
+// Non standart features
+typedef struct nsf_cfg_s {
+  bool            bypass_ul_pfcp_rules;
+} nsf_cfg_t;
+
 class spgwu_config {
 
 private:
@@ -121,6 +129,8 @@ public:
   interface_cfg_t sx;
   itti_cfg_t      itti;
 
+  nsf_cfg_t       nsf;
+
   std::string gateway;
 
   uint32_t        max_pfcp_sessions;
@@ -129,7 +139,7 @@ public:
   std::vector<pfcp::node_id_t> spgwcs;
 
 
-  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(), gateway(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100)
+  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(), gateway(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100), nsf()
   {
     itti.itti_timer_sched_params.sched_priority = 85;
     itti.s1u_sched_params.sched_priority = 84;

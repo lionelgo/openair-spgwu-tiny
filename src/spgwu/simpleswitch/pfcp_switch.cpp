@@ -56,6 +56,7 @@ using namespace std;
 extern itti_mw *itti_inst;
 extern spgwu_config spgwu_cfg;
 extern spgwu_s1u  *spgwu_s1u_inst;
+extern pfcp_switch *pfcp_switch_inst;
 
 static std::string string_to_hex(const char* input, const size_t len)
 {
@@ -778,36 +779,54 @@ void pfcp_switch::handle_pfcp_session_deletion_request(std::shared_ptr<itti_sxab
 //------------------------------------------------------------------------------
 void pfcp_switch::pfcp_session_look_up_pack_in_access(struct iphdr* const iph, const std::size_t num_bytes, const endpoint& r_endpoint, const uint32_t tunnel_id)
 {
-  std::shared_ptr<std::vector<std::shared_ptr<pfcp::pfcp_pdr>>> pdrs = {};
-  if (get_pfcp_ul_pdrs_by_up_teid(tunnel_id, pdrs)) {
-    bool nocp = false;
-    bool buff = false;
-    for (std::vector<std::shared_ptr<pfcp::pfcp_pdr>>::iterator it_pdr = pdrs->begin(); it_pdr < pdrs->end(); ++it_pdr) {
-      if ((*it_pdr)->look_up_pack_in_access(iph, num_bytes, r_endpoint, tunnel_id)) {
-        std::shared_ptr<pfcp::pfcp_session> ssession = {};
-        uint64_t lseid = 0;
-        if ((*it_pdr)->get(lseid)) {
-          if ( get_pfcp_session_by_up_seid(lseid, ssession)) {
-            pfcp::far_id_t far_id = {};
-            if ((*it_pdr)->get(far_id)) {
-              std::shared_ptr<pfcp::pfcp_far> sfar = {};
-              if (ssession->get(far_id.far_id, sfar)) {
-                sfar->apply_forwarding_rules(iph, num_bytes, nocp, buff);
+  if (!spgwu_cfg.nsf.bypass_ul_pfcp_rules) {
+    std::shared_ptr<std::vector<std::shared_ptr<pfcp::pfcp_pdr>>> pdrs = {};
+    if (get_pfcp_ul_pdrs_by_up_teid(tunnel_id, pdrs)) {
+      bool nocp = false;
+      bool buff = false;
+      for (std::vector<std::shared_ptr<pfcp::pfcp_pdr>>::iterator it_pdr = pdrs->begin(); it_pdr < pdrs->end(); ++it_pdr) {
+        if ((*it_pdr)->look_up_pack_in_access(iph, num_bytes, r_endpoint, tunnel_id)) {
+          std::shared_ptr<pfcp::pfcp_session> ssession = {};
+          uint64_t lseid = 0;
+          if ((*it_pdr)->get(lseid)) {
+            if ( get_pfcp_session_by_up_seid(lseid, ssession)) {
+              pfcp::far_id_t far_id = {};
+              if ((*it_pdr)->get(far_id)) {
+                std::shared_ptr<pfcp::pfcp_far> sfar = {};
+                if (ssession->get(far_id.far_id, sfar)) {
+                  sfar->apply_forwarding_rules(iph, num_bytes, nocp, buff);
+                }
               }
             }
           }
+          return;
         }
-        return;
-      }
-      else {
-        Logger::pfcp_switch().info( "pfcp_session_look_up_pack_in_access failed PDR id %4x ", (*it_pdr)->pdr_id.rule_id);
+        else {
+          Logger::pfcp_switch().info( "pfcp_session_look_up_pack_in_access failed PDR id %4x ", (*it_pdr)->pdr_id.rule_id);
+        }
       }
     }
+    else {
+      //Logger::pfcp_switch().info( "pfcp_session_look_up_pack_in_access tunnel " TEID_FMT " not found", tunnel_id);
+      spgwu_s1u_inst->report_error_indication(r_endpoint, tunnel_id);
+    }
+  } else {
+    // Do not check PFCP rules for all UL data packet
+    if (no_internal_loop(iph, num_bytes)) {
+      pfcp_switch_inst->send_to_core(reinterpret_cast<char* const>(iph), num_bytes);
+    }
   }
-  else {
-    //Logger::pfcp_switch().info( "pfcp_session_look_up_pack_in_access tunnel " TEID_FMT " not found", tunnel_id);
-    spgwu_s1u_inst->report_error_indication(r_endpoint, tunnel_id);
+}
+//------------------------------------------------------------------------------
+bool pfcp_switch::no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes)
+{
+  for (auto it : spgwu_cfg.pdns) {
+    if (it.network_ipv4.s_addr == be32toh(iph->daddr)) {
+      pfcp_session_look_up_pack_in_core((const char *)iph, num_bytes);
+      return false;
+    }
   }
+  return true;
 }
 //------------------------------------------------------------------------------
 void pfcp_switch::pfcp_session_look_up_pack_in_access(struct ipv6hdr* const ip6h, const std::size_t num_bytes, const endpoint& r_endpoint, const uint32_t tunnel_id)
