@@ -37,6 +37,7 @@
 #include "thread_sched.hpp"
 
 #include <folly/AtomicHashMap.h>
+#include <folly/MPMCQueue.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <unordered_map>
@@ -78,15 +79,24 @@ namespace spgwu {
 //  uint8_t                                   switching_control_index;
 //};
 
+typedef struct iovec_q_item_s {
+  struct iovec           msg_iov;
+  struct msghdr          msg;
+} iovec_q_item_t;
+
 class pfcp_switch {
 private:
   // Very unoptimized
 #define PFCP_SWITCH_RECV_BUFFER_SIZE 2048
 #define ROOM_FOR_GTPV1U_G_PDU        64
+  folly::MPMCQueue<iovec_q_item_t*>        *free_pool_;
+  folly::MPMCQueue<iovec_q_item_t*>        *work_pool_;
+  uint32_t                                  num_threads_;
+  char                                     *recv_buffer_alloc_;
   char                                      recv_buffer_[PFCP_SWITCH_RECV_BUFFER_SIZE];
+  std::vector<std::thread>                  threads_;
   int                                       sock_r;
   int                                       sock_w;
-  std::thread                               thread_sock_;
   //std::string                               gw_mac_address;
   int                                       pdn_if_index;
 
@@ -101,7 +111,6 @@ private:
 #define PFCP_SWITCH_MIN_COMMIT_INTERVAL_MILLISECONDS  50
 
   //switching_data_per_cpu_socket             switching_data[];
-  struct iovec                              msg_iov_;        /* scatter/gather array */
   std::unordered_map<pfcp::fseid_t, std::shared_ptr<pfcp::pfcp_session>>                        cp_fseid2pfcp_sessions;
   folly::AtomicHashMap<uint64_t, std::shared_ptr<pfcp::pfcp_session>>                           up_seid2pfcp_sessions;
   folly::AtomicHashMap<teid_t, std::shared_ptr<std::vector<std::shared_ptr<pfcp::pfcp_pdr>>>>   ul_s1u_teid2pfcp_pdr;
@@ -109,6 +118,7 @@ private:
 
   //moodycamel::ConcurrentQueue<pfcp::pfcp_session*>            create_session_q;
 
+  void pdn_worker(const int id, const util::thread_sched_params& sched_params);
   void pdn_read_loop(const util::thread_sched_params& sched_params);
   int create_pdn_socket (const char * const ifname, const bool promisc, int& if_index);
   int create_pdn_socket (const char * const ifname);

@@ -122,28 +122,65 @@ void pfcp_switch::time_out_max_commit_interval(const uint32_t timer_id)
 void pfcp_switch::commit_changes()
 {
 }
+//------------------------------------------------------------------------------
+void pfcp_switch::pdn_worker(const int id, const util::thread_sched_params& sched_params)
+{
+  uint64_t               count = 0;
+  iovec_q_item_t   *iov = nullptr;
 
+  sched_params.apply(TASK_NONE, Logger::udp());
+  while (1) {
+    work_pool_->blockingRead(iov);
+    ++count;
+    std::cout << "DL w" << id << " " << count << std::endl;
+    // exit thread
+    if (iov->msg_iov.iov_base) {
+      pfcp_session_look_up_pack_in_core((const char*)iov->msg_iov.iov_base, iov->msg_iov.iov_len);
+      free_pool_->write(iov);
+    } else {
+      free(iov);
+      std::cout << "exit DL w" << id << " " << count << std::endl;
+      while (work_pool_->readIfNotEmpty(iov)) {
+        free(iov);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000) );
+      }
+      return;
+    }
+    iov = nullptr;
+  }
+}
 //------------------------------------------------------------------------------
 void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
 {
-  int        bytes_received = 0;
+  uint64_t          count = 0;
+  iovec_q_item_t   *iov = nullptr;
 
   sched_params.apply(TASK_NONE, Logger::pfcp_switch());
 
-  struct msghdr msg = {};
-  msg.msg_iov = &msg_iov_;
-  msg.msg_iovlen = 1;
-
   while (1) {
-    if ((bytes_received = recvmsg(sock_r, &msg, 0)) > 0) {
-      auto start = std::chrono::high_resolution_clock::now();
-      pfcp_session_look_up_pack_in_core((const char*)msg_iov_.iov_base, bytes_received);
-      auto stop = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-      cout << "DL took "  << duration.count() << std::endl;
-    } else {
-      Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s", bytes_received, strerror (errno));
+    free_pool_->blockingRead(iov);
+    iov->msg.msg_iovlen = 1;
+    iov->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
+    ++count;
+    std::cout << "d" << count << std::endl;
+    // exit thread
+    if (iov->msg_iov.iov_base == nullptr) {
+      free(iov);
+      while (work_pool_->readIfNotEmpty(iov)) {
+        free(iov);
+      }
+      std::cout << "exit d" << count << std::endl;
+      return;
     }
+    if ((iov->msg_iov.iov_len = recvmsg(sock_r, &iov->msg, 0)) > 0) {
+      work_pool_->write(iov);
+    } else {
+      Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s",
+          iov->msg_iov.iov_len,
+          strerror (errno));
+      free_pool_->write(iov);
+    }
+    iov = nullptr;
   }
 }
 //------------------------------------------------------------------------------
@@ -340,19 +377,37 @@ pfcp::fteid_t pfcp_switch::generate_fteid_s1u()
 pfcp_switch::pfcp_switch() : seid_generator_(), teid_s1u_generator_(),
     ue_ipv4_hbo2pfcp_pdr(PFCP_SWITCH_MAX_PDRS),
     ul_s1u_teid2pfcp_pdr(PFCP_SWITCH_MAX_PDRS),
-    up_seid2pfcp_sessions(PFCP_SWITCH_MAX_SESSIONS)
+    up_seid2pfcp_sessions(PFCP_SWITCH_MAX_SESSIONS),
+    threads_(16)
 {
+  num_threads_ = 8;
+  int num_blocks = num_threads_ * 16;
+  free_pool_ = new folly::MPMCQueue<iovec_q_item_t*>(num_blocks);
+  work_pool_ = new folly::MPMCQueue<iovec_q_item_t*>(num_blocks);
+
+  recv_buffer_alloc_ = (char*)calloc(num_blocks, PFCP_SWITCH_RECV_BUFFER_SIZE);
+
+  for (int i = 0; i < num_blocks; i++) {
+    iovec_q_item_s *v = (iovec_q_item_s*)calloc(1, sizeof(iovec_q_item_s));
+    v->msg_iov.iov_base = (void*)((uintptr_t)calloc(1, PFCP_SWITCH_RECV_BUFFER_SIZE) + (uintptr_t)ROOM_FOR_GTPV1U_G_PDU);
+    v->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
+    free_pool_->blockingWrite(v);
+  }
+  for (int i = 0; i < num_threads_; i++) {
+    std::thread t = std::thread(&pfcp_switch::pdn_worker,this, i, spgwu_cfg.sgi.thread_rd_sched_params);
+    threads_.push_back(std::move(t));
+  }
+
   timer_min_commit_interval_id = 0;
   timer_max_commit_interval_id = 0;
   cp_fseid2pfcp_sessions = {},
-  msg_iov_.iov_base = &recv_buffer_[ROOM_FOR_GTPV1U_G_PDU]; // make room for GTPU G_PDU header
-  msg_iov_.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
   sock_r = -1;
   sock_w = -1;
   pdn_if_index = -1;
   setup_pdn_interfaces();
-  thread_sock_ = thread(&pfcp_switch::pdn_read_loop,this, spgwu_cfg.sgi.thread_rd_sched_params);
-  thread_sock_.detach();
+  std::thread t  = thread(&pfcp_switch::pdn_read_loop,this, spgwu_cfg.sgi.thread_rd_sched_params);
+  t.detach();
+  threads_.push_back(std::move(t));
 }
 //------------------------------------------------------------------------------
 bool pfcp_switch::get_pfcp_session_by_cp_fseid(const pfcp::fseid_t& fseid, std::shared_ptr<pfcp::pfcp_session>& session) const
