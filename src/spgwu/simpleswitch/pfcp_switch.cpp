@@ -161,6 +161,8 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
     free_pool_->blockingRead(iov);
     iov->msg.msg_iovlen = 1;
     iov->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
+    iov->msg.msg_control = nullptr;      /* Set to NULL if not needed  */
+    iov->msg.msg_controllen = 0;
     ++count;
     std::cout << "d" << count << std::endl;
     // exit thread
@@ -172,7 +174,9 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
       std::cout << "exit d" << count << std::endl;
       return;
     }
-    if ((iov->msg_iov.iov_len = recvmsg(sock_r, &iov->msg, 0)) > 0) {
+    ssize_t size;
+    if ((size = recvmsg(sock_r, &iov->msg, 0)) > 0) {
+      iov->msg_iov.iov_len = size;
       work_pool_->write(iov);
     } else {
       Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s",
