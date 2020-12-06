@@ -155,15 +155,15 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
   uint64_t          count = 0;
   uint64_t          errors = 0;
   iovec_q_item_t   *iov = nullptr;
-
+  struct sockaddr_in   sin = {};
   sched_params.apply(TASK_NONE, Logger::pfcp_switch());
 
   while (1) {
     if (!iov) {
       free_pool_->blockingRead(iov);
     }
-    iov->msg.msg_name = nullptr;
-    iov->msg.msg_namelen = 0;
+    iov->msg.msg_name = &sin;
+    iov->msg.msg_namelen = sizeof(sin);
     iov->msg.msg_iovlen = 1;
     iov->msg.msg_flags = 0;
     iov->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
@@ -178,17 +178,24 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
       std::cout << "exit d" << count << std::endl;
       return;
     }
-    ssize_t size;
-    if ((size = recvmsg(sock_r, &iov->msg, 0)) > 0) {
+    ssize_t nread;
+    struct sockaddr_storage peer_addr;
+    socklen_t peer_addr_len;
+    peer_addr_len = sizeof(struct sockaddr_storage);
+    if ((nread = recvfrom(sock_r, iov->msg_iov.iov_base, iov->msg_iov.iov_len, 0,
+            (struct sockaddr *) &peer_addr, &peer_addr_len)) > 0) {
+    //if ((nread = recvmsg(sock_r, &iov->msg, 0)) > 0) {
       ++count;
       std::cout << "d" << count << std::endl;
-      iov->msg_iov.iov_len = size;
+      iov->msg_iov.iov_len = nread;
       free_pool_->write(iov);
       iov = nullptr;
     } else {
       ++errors;
       Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s nb_errors %d",
-          size, strerror (errno), errors);
+          nread, strerror (errno), errors);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000) );
+      exit(0);
     }
   }
 }
@@ -355,7 +362,7 @@ void pfcp_switch::setup_pdn_interfaces()
   rc = system ((const char*)cmd.c_str());
 
 
-  if ((sock_r = create_pdn_socket(PDN_INTERFACE_NAME, false, pdn_if_index)) == RETURNerror) {
+  if ((sock_r = create_pdn_socket(PDN_INTERFACE_NAME)) == RETURNerror) {
     Logger::pfcp_switch().error("Could not set PDN dummy read socket");
     sleep(2);
     exit(EXIT_FAILURE);
@@ -400,6 +407,10 @@ pfcp_switch::pfcp_switch() : seid_generator_(), teid_s1u_generator_(),
     iovec_q_item_s *v = (iovec_q_item_s*)calloc(1, sizeof(iovec_q_item_s));
     v->msg_iov.iov_base = (void*)((uintptr_t)calloc(1, PFCP_SWITCH_RECV_BUFFER_SIZE) + (uintptr_t)ROOM_FOR_GTPV1U_G_PDU);
     v->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
+    v->msg.msg_iovlen = 1;
+    v->msg.msg_flags = 0;
+    v->msg.msg_control = nullptr;
+    v->msg.msg_controllen = 0;
     free_pool_->blockingWrite(v);
   }
   for (int i = 0; i < num_threads_; i++) {
