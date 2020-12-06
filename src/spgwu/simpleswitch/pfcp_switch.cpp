@@ -153,18 +153,22 @@ void pfcp_switch::pdn_worker(const int id, const util::thread_sched_params& sche
 void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
 {
   uint64_t          count = 0;
+  uint64_t          errors = 0;
   iovec_q_item_t   *iov = nullptr;
 
   sched_params.apply(TASK_NONE, Logger::pfcp_switch());
 
   while (1) {
-    free_pool_->blockingRead(iov);
+    if (!iov) {
+      free_pool_->blockingRead(iov);
+    }
+    iov->msg.msg_name = nullptr;
+    iov->msg.msg_namelen = 0;
     iov->msg.msg_iovlen = 1;
+    iov->msg.msg_flags = 0;
     iov->msg_iov.iov_len = PFCP_SWITCH_RECV_BUFFER_SIZE - ROOM_FOR_GTPV1U_G_PDU;
     iov->msg.msg_control = nullptr;      /* Set to NULL if not needed  */
     iov->msg.msg_controllen = 0;
-    ++count;
-    std::cout << "d" << count << std::endl;
     // exit thread
     if (iov->msg_iov.iov_base == nullptr) {
       free(iov);
@@ -176,15 +180,16 @@ void pfcp_switch::pdn_read_loop(const util::thread_sched_params& sched_params)
     }
     ssize_t size;
     if ((size = recvmsg(sock_r, &iov->msg, 0)) > 0) {
+      ++count;
+      std::cout << "d" << count << std::endl;
       iov->msg_iov.iov_len = size;
-      work_pool_->write(iov);
-    } else {
-      Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s",
-          iov->msg_iov.iov_len,
-          strerror (errno));
       free_pool_->write(iov);
+      iov = nullptr;
+    } else {
+      ++errors;
+      Logger::pfcp_switch().error( "recvmsg failed rc=%d:%s nb_errors %d",
+          size, strerror (errno), errors);
     }
-    iov = nullptr;
   }
 }
 //------------------------------------------------------------------------------
@@ -350,13 +355,13 @@ void pfcp_switch::setup_pdn_interfaces()
   rc = system ((const char*)cmd.c_str());
 
 
-  if ((sock_r = create_pdn_socket(PDN_INTERFACE_NAME, false, pdn_if_index)) <= 0) {
+  if ((sock_r = create_pdn_socket(PDN_INTERFACE_NAME, false, pdn_if_index)) == RETURNerror) {
     Logger::pfcp_switch().error("Could not set PDN dummy read socket");
     sleep(2);
     exit(EXIT_FAILURE);
   }
 
-  if ((sock_w = create_pdn_socket(spgwu_cfg.sgi.if_name.c_str())) <= 0) {
+  if ((sock_w = create_pdn_socket(spgwu_cfg.sgi.if_name.c_str())) == RETURNerror) {
     Logger::pfcp_switch().error("Could not set PDN dummy write socket");
     sleep(2);
     exit(EXIT_FAILURE);
