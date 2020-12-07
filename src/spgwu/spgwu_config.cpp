@@ -315,7 +315,8 @@ int spgwu_config::load(const string& config_file)
         if (boost::iequals(astring, "yes")) {
           nsf.bypass_ul_pfcp_rules = true;
         }
-      }    } catch(const SettingNotFoundException &nfex) {
+      }
+    } catch(const SettingNotFoundException &nfex) {
       Logger::spgwu_app().info("%s : %s, using defaults", nfex.what(), nfex.getPath());
     }
 
