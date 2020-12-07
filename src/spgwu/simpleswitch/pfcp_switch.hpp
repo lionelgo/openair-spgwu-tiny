@@ -123,7 +123,6 @@ private:
   int create_pdn_socket (const char * const ifname, const bool promisc, int& if_index);
   int create_pdn_socket (const char * const ifname);
   void setup_pdn_interfaces();
-  bool no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes);
 
   timer_id_t timer_max_commit_interval_id;
   timer_id_t timer_min_commit_interval_id;
@@ -171,6 +170,7 @@ public:
 
   void pfcp_session_look_up_pack_in_core(const char *buffer, const std::size_t num_bytes);
 
+  bool no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes);
   void send_to_core(char* const ip_packet, const ssize_t len);
 
   void handle_pfcp_session_establishment_request(std::shared_ptr<itti_sxab_session_establishment_request> sreq, itti_sxab_session_establishment_response* );

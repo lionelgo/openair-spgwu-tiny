@@ -70,7 +70,9 @@ void pfcp_far::apply_forwarding_rules(struct iphdr* const iph, const std::size_t
             }
           }
         } else if (forwarding_parameters.second.destination_interface.second.interface_value == INTERFACE_VALUE_CORE) {
-          pfcp_switch_inst->send_to_core(reinterpret_cast<char* const>(iph), num_bytes);
+          if (pfcp_switch_inst->no_internal_loop(iph, num_bytes)) {
+            pfcp_switch_inst->send_to_core(reinterpret_cast<char* const>(iph), num_bytes);
+          }
         } else {
         }
       } else {
