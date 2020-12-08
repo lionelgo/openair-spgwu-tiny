@@ -31,15 +31,11 @@
 FROM centos:8 as oai-spgwu-tiny-builder
 
 ARG HTTP_PROXY
-ARG BUILD_FOR_CI
-ARG CI_SRC_BRANCH
-ARG CI_SRC_COMMIT
-ARG CI_DEST_BRANCH
 
 RUN yum update -y \
   && yum install epel-release -y \
   && yum install dnf-plugins-core -y \
-  && yum config-manager --set-enabled PowerTools \
+  && yum config-manager --set-enabled powertools \
   && yum install -y \
     psmisc \
     git \
@@ -69,13 +65,8 @@ RUN /bin/bash -c "if [[ -v HTTP_PROXY ]]; then git config --global http.proxy $H
 RUN git config --global https.postBuffer 123289600
 RUN git config --global http.sslverify false
 # In normal case, we build out of the develop branch
-RUN /bin/bash -c "if [[ -v CI_SRC_BRANCH ]]; then git clone https://github.com/lionelgo/openair-spgwu-tiny.git -b $CI_SRC_BRANCH /openair-spgwu-tiny; else git clone https://github.com/lionelgo/openair-spgwu-tiny.git -b mono2multithread /openair-spgwu-tiny; fi"
-# For CI, especially for Pull/Merge Requests, we build out of temp merge
-WORKDIR /openair-spgwu-tiny
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.name \"OAI CI\"; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git config --global user.email ci@openairinterface.org; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git checkout -f $CI_SRC_COMMIT; fi"
-RUN /bin/bash -c "if [[ -v BUILD_FOR_CI ]]; then git merge --ff origin/$CI_DEST_BRANCH -m \"Temporary merge for CI\"; fi"
+
+COPY ./ /openair-spgwu-tiny
 
 # Installing and Building SPGW-U
 WORKDIR /openair-spgwu-tiny/build/scripts
