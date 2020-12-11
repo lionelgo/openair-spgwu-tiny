@@ -350,7 +350,8 @@ int spgwu_config::load(const string& config_file)
         }
         pdn_cfg.prefix_ipv4 = std::stoul (ips.at(1),nullptr,0);
         pdn_cfg.network_ipv4_be = htobe32(pdn_cfg.network_ipv4.s_addr);
-        pdn_cfg.network_mask_ipv4_be = htobe32(0xFFFFFFFF << (32 - pdn_cfg.prefix_ipv4));
+        pdn_cfg.network_mask_ipv4 = 0xFFFFFFFF << (32 - pdn_cfg.prefix_ipv4);
+        pdn_cfg.network_mask_ipv4_be = htobe32(pdn_cfg.network_mask_ipv4);
       }
 
       string network_ipv6 = {};

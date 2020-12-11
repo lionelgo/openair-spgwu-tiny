@@ -92,6 +92,7 @@ typedef struct interface_cfg_s {
 typedef struct pdn_cfg_s {
   struct in_addr  network_ipv4;
   uint32_t        network_ipv4_be;
+  uint32_t        network_mask_ipv4;
   uint32_t        network_mask_ipv4_be;
   int             prefix_ipv4;
   struct in6_addr network_ipv6;

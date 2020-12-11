@@ -896,7 +896,7 @@ void pfcp_switch::pfcp_session_look_up_pack_in_access(struct iphdr* const iph, c
 bool pfcp_switch::no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes)
 {
   for (auto it : spgwu_cfg.pdns) {
-    if (it.network_ipv4_be == (iph->daddr & it.network_mask_ipv4_be)) {
+    if (it.network_ipv4.s_addr == (iph->daddr & it.network_mask_ipv4_be)) {
       pfcp_session_look_up_pack_in_core((const char *)iph, num_bytes);
       return false;
     }
