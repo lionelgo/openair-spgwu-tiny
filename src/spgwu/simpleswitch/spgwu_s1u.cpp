@@ -110,7 +110,7 @@ spgwu_s1u::spgwu_s1u () : gtpu_l4_stack(spgwu_cfg.s1_up.addr4, spgwu_cfg.s1_up.p
 void spgwu_s1u::handle_receive(char* recv_buffer, const std::size_t bytes_transferred, const endpoint& r_endpoint)
 {
 #define GTPU_MESSAGE_FLAGS_POS_IN_UDP_PAYLOAD 0
-  auto start = std::chrono::high_resolution_clock::now();
+  //auto start = std::chrono::high_resolution_clock::now();
   struct gtpuhdr* gtpuh = (struct gtpuhdr*)&recv_buffer[0];
 
   if (gtpuh->version == 1) {
@@ -156,9 +156,9 @@ void spgwu_s1u::handle_receive(char* recv_buffer, const std::size_t bytes_transf
       Logger::spgwu_s1u().trace( "Unknown IPX packet");
     }
   }
-  auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-  cout << "UL took "  << duration.count() << std::endl;
+  //auto stop = std::chrono::high_resolution_clock::now();
+  //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+  //cout << "UL took "  << duration.count() << std::endl;
 }
 //------------------------------------------------------------------------------
 void spgwu_s1u::handle_receive_gtpv1u_msg(gtpv1u_msg& msg, const endpoint& r_endpoint)

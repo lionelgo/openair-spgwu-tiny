@@ -95,7 +95,7 @@ private:
   char                                     *recv_buffer_alloc_;
   char                                      recv_buffer_[PFCP_SWITCH_RECV_BUFFER_SIZE];
   std::vector<std::thread>                  threads_;
-  int                                       sock_r;
+  std::vector<int>                          socks_r;
   int                                       sock_w;
   //std::string                               gw_mac_address;
   int                                       pdn_if_index;
@@ -119,9 +119,10 @@ private:
   //moodycamel::ConcurrentQueue<pfcp::pfcp_session*>            create_session_q;
 
   void pdn_worker(const int id, const util::thread_sched_params& sched_params);
-  void pdn_read_loop(const util::thread_sched_params& sched_params);
+  void pdn_read_loop(int sock_r, const util::thread_sched_params& sched_params);
   int create_pdn_socket (const char * const ifname, const bool promisc, int& if_index);
   int create_pdn_socket (const char * const ifname);
+  int tun_open(char *devname);
   void setup_pdn_interfaces();
 
   timer_id_t timer_max_commit_interval_id;

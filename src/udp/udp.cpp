@@ -68,14 +68,14 @@ void udp_server::udp_worker_loop(const int id, const util::thread_sched_params& 
   while (1) {
     work_pool_->blockingRead(worker);
     ++count;
-    std::cout << "w" << id << " " << count << std::endl;
+    //std::cout << "w" << id << " " << count << std::endl;
     // exit thread
     if (worker->buffer) {
       app_->handle_receive(worker->buffer, worker->size, worker->r_endpoint);
       free_pool_->write(worker);
     } else {
       free(worker);
-      std::cout << "exit w" << id << " " << count << std::endl;
+      //std::cout << "exit w" << id << " " << count << std::endl;
       while (work_pool_->readIfNotEmpty(worker)) {
         free(worker);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000) );
@@ -97,14 +97,14 @@ void udp_server::udp_read_loop(const util::thread_sched_params& sched_params)
   while (1) {
     free_pool_->blockingRead(worker);
     ++count;
-    std::cout << "d" << count << std::endl;
+    //std::cout << "d" << count << std::endl;
     // exit thread
     if (worker->buffer == nullptr) {
       free(worker);
       while (work_pool_->readIfNotEmpty(worker)) {
         free(worker);
       }
-      std::cout << "exit d" << count << std::endl;
+      //std::cout << "exit d" << count << std::endl;
       return;
     }
     worker->r_endpoint.addr_storage_len = sizeof(struct sockaddr_storage);

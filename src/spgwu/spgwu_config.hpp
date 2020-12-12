@@ -97,7 +97,6 @@ typedef struct pdn_cfg_s {
   int             prefix_ipv4;
   struct in6_addr network_ipv6;
   int             prefix_ipv6;
-  bool            snat;
 } pdn_cfg_t;
 
 typedef struct itti_cfg_s {
@@ -138,11 +137,14 @@ public:
 
   uint32_t        max_pfcp_sessions;
 
+  bool            snat;
   std::vector<pdn_cfg_t> pdns;
   std::vector<pfcp::node_id_t> spgwcs;
 
 
-  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(), gateway(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100), nsf()
+  spgwu_config() : m_rw_lock(), pid_dir(), instance(0), s1_up(), sgi(),
+      gateway(), sx(), itti(), pdns(), spgwcs(), max_pfcp_sessions(100), nsf(),
+      snat(false)
   {
     itti.itti_timer_sched_params.sched_priority = 85;
     itti.s1u_sched_params.sched_priority = 84;
