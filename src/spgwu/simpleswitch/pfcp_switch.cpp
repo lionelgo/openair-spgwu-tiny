@@ -61,70 +61,6 @@ extern spgwu_config spgwu_cfg;
 extern spgwu_s1u  *spgwu_s1u_inst;
 extern pfcp_switch *pfcp_switch_inst;
 
-static std::string string_to_hex(const char* input, const size_t len)
-{
-    static const char* const lut = "0123456789ABCDEF";
-
-    std::string output;
-    output.reserve(2 * len);
-    for (size_t i = 0; i < len; ++i)
-    {
-        const unsigned char c = input[i];
-        output.push_back(lut[c >> 4]);
-        output.push_back(lut[c & 15]);
-    }
-    return output;
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::stop_timer_min_commit_interval()
-{
-  if (timer_min_commit_interval_id) {
-    itti_inst->timer_remove(timer_min_commit_interval_id);
-  }
-  timer_min_commit_interval_id = 0;
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::start_timer_min_commit_interval()
-{
-  stop_timer_min_commit_interval();
-  timer_min_commit_interval_id = itti_inst->timer_setup (PFCP_SWITCH_MIN_COMMIT_INTERVAL_MILLISECONDS/1000, PFCP_SWITCH_MIN_COMMIT_INTERVAL_MILLISECONDS%1000, TASK_SPGWU_APP, TASK_SPGWU_PFCP_SWITCH_MIN_COMMIT_INTERVAL);
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::stop_timer_max_commit_interval()
-{
-  if (timer_max_commit_interval_id) {
-    itti_inst->timer_remove(timer_max_commit_interval_id);
-  }
-  timer_max_commit_interval_id = 0;
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::start_timer_max_commit_interval()
-{
-  stop_timer_max_commit_interval();
-  timer_max_commit_interval_id = itti_inst->timer_setup (PFCP_SWITCH_MAX_COMMIT_INTERVAL_MILLISECONDS/1000, PFCP_SWITCH_MAX_COMMIT_INTERVAL_MILLISECONDS%1000, TASK_SPGWU_APP, TASK_SPGWU_PFCP_SWITCH_MAX_COMMIT_INTERVAL);
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::time_out_min_commit_interval(const uint32_t timer_id)
-{
-  if (timer_id == timer_min_commit_interval_id) {
-    stop_timer_max_commit_interval();
-    timer_min_commit_interval_id = 0;
-    commit_changes();
-  }
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::time_out_max_commit_interval(const uint32_t timer_id)
-{
-  if (timer_id == timer_max_commit_interval_id) {
-    stop_timer_min_commit_interval();
-    timer_max_commit_interval_id = 0;
-    commit_changes();
-  }
-}
-//------------------------------------------------------------------------------
-void pfcp_switch::commit_changes()
-{
-}
 //------------------------------------------------------------------------------
 void pfcp_switch::pdn_worker(const int id, const util::thread_sched_params& sched_params)
 {
@@ -201,16 +137,15 @@ void pfcp_switch::pdn_read_loop(int sock_r, const util::thread_sched_params& sch
 void pfcp_switch::send_to_core(char* const ip_packet, const ssize_t len)
 {
   ssize_t bytes_sent;
-  //Logger::pfcp_switch().info( "pfcp_switch::send_to_core %d bytes ", len);
-  struct sockaddr_in dst; // no clear
-  dst.sin_addr.s_addr = ((struct iphdr*)ip_packet)->daddr;
-  dst.sin_family = AF_INET;
-  if((bytes_sent = sendto(sock_w, ip_packet, len, 0, (struct sockaddr *)&dst, sizeof(dst))) < 0) {
-    Logger::pfcp_switch().error( "sendto failed rc=%d:%s", bytes_sent, strerror (errno));
+  //Logger::pfcp_switch().trace( "pfcp_switch::send_to_core %d bytes ", len);
+  if((bytes_sent = write(sock_w, ip_packet, len)) < 0) {
+    Logger::pfcp_switch().error( "write fd %d failed rc=%d:%s", sock_w,
+        bytes_sent, strerror (errno));
   }
 }
 //------------------------------------------------------------------------------
-int pfcp_switch::create_pdn_socket (const char * const ifname, const bool promisc, int& if_index)
+int pfcp_switch::create_pdn_socket (const char * const ifname,
+    const bool promisc, int& if_index)
 {
   struct sockaddr_in                      addr = {};
   int                                     sd = 0;
@@ -228,7 +163,6 @@ int pfcp_switch::create_pdn_socket (const char * const ifname, const bool promis
     return RETURNerror;
   }
 
-
   if (ifname) {
     struct ifreq ifr = {};
     strncpy ((char *) ifr.ifr_name, ifname, IFNAMSIZ);
@@ -244,6 +178,8 @@ int pfcp_switch::create_pdn_socket (const char * const ifname, const bool promis
     sll.sll_family = AF_PACKET;          /* Always AF_PACKET */
     sll.sll_protocol = htons(ETH_P_ALL); /* Physical-layer protocol */
     sll.sll_ifindex = ifr.ifr_ifindex;   /* Interface number */
+    sll.sll_pkttype = PACKET_HOST;
+
     if (bind (sd, (struct sockaddr *)&sll, sizeof (sll)) < 0) {
       /*
        * Bind failed
@@ -305,13 +241,12 @@ int pfcp_switch::create_pdn_socket (const char * const ifname)
   return RETURNerror;
 }
 //------------------------------------------------------------------------------
-int pfcp_switch::tun_open(char *devname)
+int pfcp_switch::tun_open(char *devname, int flags)
 {
   struct ifreq ifr;
   int fd, err;
-
-  if ( (fd = open("/dev/net/tun", O_RDWR)) == -1 ) {
-    Logger::pfcp_switch().error("open /dev/net/tun");exit(1);
+  if ( (fd = open("/dev/net/tun", flags)) == -1 ) {
+    Logger::pfcp_switch().error("open /dev/net/tun");
     return RETURNerror;
   }
   memset(&ifr, 0, sizeof(ifr));
@@ -319,7 +254,7 @@ int pfcp_switch::tun_open(char *devname)
   strncpy(ifr.ifr_name, devname, IFNAMSIZ); // devname = tunX
 
   if ( (err = ioctl(fd, TUNSETIFF, (void *) &ifr)) == -1 ) {
-    Logger::pfcp_switch().error("ioctl TUNSETIFF");
+    Logger::pfcp_switch().error("ioctl TUNSETIFF %d %s", err, strerror (errno));
     close(fd);
     return RETURNerror;
   }
@@ -333,26 +268,32 @@ void pfcp_switch::setup_pdn_interfaces()
   int rc = 0;
   int if_index = 0;
 
-  if ((sock_w = create_pdn_socket(spgwu_cfg.sgi.if_name.c_str())) == RETURNerror) {
-    Logger::pfcp_switch().error("Could not set PDN dummy write socket");
-    sleep(2);
-    exit(EXIT_FAILURE);
-  }
-
   int index = 0;
-  for (auto it : spgwu_cfg.pdns) {
+  // TODO for loop on pdns
+  {
+    pdn_cfg_t it = spgwu_cfg.pdns[index];
     int sock_r = 0;
 
     cmd = fmt::format("ip tuntap add mode tun dev tun{}", index);
     rc = system ((const char*)cmd.c_str());
 
+    cmd = fmt::format("ip link set dev tun{} up", index);
+    rc = system ((const char*)cmd.c_str());
+
+    cmd = fmt::format("ethtool -K tun{0} tx-checksum-ip-generic off;",  index);
+    rc = system ((const char*)cmd.c_str());
+
     if (it.prefix_ipv4) {
+      struct in_addr address4 = {};
+      address4.s_addr = it.network_ipv4.s_addr + be32toh(1);
+
       cmd = fmt::format("ip addr add {}/{} dev tun{}",
-          conv::toString(it.network_ipv4).c_str(), it.prefix_ipv4, index);
+          conv::toString(address4).c_str(), it.prefix_ipv4, index);
       rc = system ((const char*)cmd.c_str());
 
       if (spgwu_cfg.snat) {
-        cmd = fmt::format("iptables -t nat -A POSTROUTING -s {}/{} -o {} -j SNAT --to-source {}",
+        cmd = fmt::format(
+            "iptables -t nat -A POSTROUTING -s {}/{} -o {} -j SNAT --to-source {}",
                           conv::toString(it.network_ipv4).c_str(),
                           it.prefix_ipv4,
                           spgwu_cfg.sgi.if_name.c_str(),
@@ -373,8 +314,6 @@ void pfcp_switch::setup_pdn_interfaces()
       //    rc = system ((const char*)cmd.c_str());
       //}
     }
-    cmd = fmt::format("ip link set dev tun{} up", index);
-    rc = system ((const char*)cmd.c_str());
     // even if we do nat, we can receive ue ip destinated IP packet
     // but do not forget to set routes outside SPGWu
     cmd = fmt::format("/sbin/sysctl -w net.ipv4.conf.{}.rp_filter=0",
@@ -388,11 +327,13 @@ void pfcp_switch::setup_pdn_interfaces()
     //rc = system ((const char*)cmd.c_str());
 
     cmd = fmt::format("tun{}", index);
-    if ((sock_r = tun_open((char*)cmd.c_str())) <= 0) {
+    if ((sock_r = tun_open((char*)cmd.c_str(), O_RDWR)) == RETURNerror) {
       Logger::pfcp_switch().error("Could not set PDN interface read socket");
       sleep(2);
       exit(EXIT_FAILURE);
     }
+
+    sock_w = sock_r;
 
     std::thread t  = thread(&pfcp_switch::pdn_read_loop,this, sock_r, spgwu_cfg.sgi.thread_rd_sched_params);
     t.detach();
@@ -425,7 +366,7 @@ pfcp_switch::pfcp_switch() : seid_generator_(), teid_s1u_generator_(),
     ue_ipv4_hbo2pfcp_pdr(PFCP_SWITCH_MAX_PDRS),
     ul_s1u_teid2pfcp_pdr(PFCP_SWITCH_MAX_PDRS),
     up_seid2pfcp_sessions(PFCP_SWITCH_MAX_SESSIONS),
-    threads_(16), socks_r(16)
+    threads_(16), socks_r(16), sock_w(0)
 {
   num_threads_ = 8;
   int num_blocks = num_threads_ * 16;
@@ -922,11 +863,11 @@ void pfcp_switch::pfcp_session_look_up_pack_in_access(struct iphdr* const iph, c
 //------------------------------------------------------------------------------
 bool pfcp_switch::no_internal_loop(struct iphdr* const iph, const std::size_t num_bytes)
 {
-  for (auto it : spgwu_cfg.pdns) {
-    if (it.network_ipv4.s_addr == (iph->daddr & it.network_mask_ipv4_be)) {
-      pfcp_session_look_up_pack_in_core((const char *)iph, num_bytes);
-      return false;
-    }
+  pdn_cfg_t &pdn = spgwu_cfg.pdns[0];
+  if ((pdn.network_ipv4.s_addr == (iph->daddr & pdn.network_mask_ipv4_be)) &&
+      ((be32toh(iph->daddr) & 0x000000FF) != 0X00000001)) {
+    pfcp_session_look_up_pack_in_core((const char *)iph, num_bytes);
+    return false;
   }
   return true;
 }
